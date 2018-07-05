@@ -29,3 +29,6 @@ echo "Setting up Nexus in project $GUID-nexus"
 # oc new-app -f ../templates/nexus.yaml --param .....
 
 # To be Implemented by Student
+
+TEMPLATES_ROOT=$(dirname $0)/../templates
+echo oc new-app ${TEMPLATES_ROOT}/advdev-nexus-template.yml -n ${GUID}-nexus

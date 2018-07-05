@@ -1,0 +1,164 @@
+apiVersion: v1
+kind: Template
+labels:
+  app: advdev-nexus
+  template: advdev-nexus-template
+metadata:
+  name: advdev-nexus
+objects:
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: nexus3
+  spec:
+    tags:
+    - from:
+        kind: DockerImage
+        name: docker.io/sonatype/nexus3:latest
+      name: latest
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      template.alpha.openshift.io/wait-for-ready: "true"
+    name: nexus3
+  spec:
+    replicas: 1
+    selector:
+      name: nexus3
+    strategy:
+      type: Recreate
+      recreateParams:
+        timeoutSeconds: 300
+        post:
+          failurePolicy: Abort
+          execNewPod:
+            containerName: nexus3
+            command:
+              - "/bin/bash"
+              - "-c"
+              - "curl -o /tmp/setup_nexus3.sh -s https://raw.githubusercontent.com/wkulhanek/ocp_advanced_development_resources/master/nexus/setup_nexus3.sh; source /tmp/setup_nexus3.sh admin admin123 http://nexus3:8081"
+    paused: false
+    template:
+      metadata:
+        labels:
+          name: nexus3
+      spec:
+        containers:
+        - name: nexus3
+          image: sonatype/nexus3:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+          - containerPort: 8081
+            protocol: TCP
+          livenessProbe:
+            exec:
+              command:
+              - echo
+              - ok
+            failureThreshold: 3
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /repository/maven-public/
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 10
+          resources:
+            limits:
+              memory: 2Gi
+            requests:
+              memory: 1Gi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /nexus-data
+            name: nexus3-volume-1
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: nexus3-volume-1
+          persistentVolumeClaim:
+            claimName: pvc-nexus
+    triggers:
+    - type: ConfigChange
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+        - nexus3
+        from:
+          kind: ImageStreamTag
+          name: nexus3:latest
+- apiVersion: v1
+  kind: Route
+  metadata:
+    annotations:
+      openshift.io/host.generated: "true"
+      template.openshift.io/expose-uri: http://{.spec.host}{.spec.path}
+    name: nexus-registry
+  spec:
+    tls:
+      termination: edge
+    to:
+      kind: Service
+      name: nexus-registry
+- apiVersion: v1
+  kind: Route
+  metadata:
+    annotations:
+      openshift.io/host.generated: "true"
+      template.openshift.io/expose-uri: http://{.spec.host}{.spec.path}
+    name: nexus3
+  spec:
+    to:
+      kind: Service
+      name: nexus3
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: pvc-nexus
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 4Gi
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: nexus-registry
+  spec:
+    ports:
+    - name: docker-registry
+      port: 5000
+      protocol: TCP
+      targetPort: 5000
+    selector:
+      name: nexus3
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: nexus3
+  spec:
+    ports:
+    - name: maven-repository
+      port: 8081
+      protocol: TCP
+      targetPort: 8081
+    selector:
+      name: nexus3
+    sessionAffinity: None
+    type: ClusterIP
