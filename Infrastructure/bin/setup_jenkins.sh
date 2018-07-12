@@ -26,7 +26,7 @@ echo "Setting up Jenkins in project ${GUID}-jenkins from Git Repo ${REPO} for Cl
 # * GUID: the GUID used in all the projects
 # * CLUSTER: the base url of the cluster used (e.g. na39.openshift.opentlc.com)
 
-# To be Implemented by Student
-
 TEMPLATES_ROOT=$(dirname $0)/../templates
 oc new-app ${TEMPLATES_ROOT}/advdev-jenkins-template.yml -n ${GUID}-jenkins
+
+cat jenkins-slave-appdev.Dockerfile | oc new-build --name=jenkins-slave-appdev -D -
