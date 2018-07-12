@@ -1,40 +1,105 @@
-// Jenkinsfile for MLBParks
-podTemplate(
-  label: "skopeo-pod",
-  cloud: "openshift",
-  inheritFrom: "maven",
-  containers: [
-    containerTemplate(
-      name: "jnlp",
-      image: "docker-registry.default.svc:5000/${GUID}-jenkins/jenkins-slave-appdev",
-      resourceRequestMemory: "1Gi",
-      resourceLimitMemory: "2Gi"
-    )
-  ]
-) {
-  node('skopeo-pod') {
-    echo "GUID: ${GUID}"
-    echo "CLUSTER: ${CLUSTER}"
+final GIT_REPOS = "https://github.com/takami-h/advdev_homework.git"
+// TODO ハードコーディングをやめるには？
+final CLUSTER = "https://jenkins-thirata-jenkins.apps.na39.openshift.opentlc.com"
+final GUID = "thirata"
+final SONAR_URL = "http://sonarqube.${GUID}-sonarqube.svc:9000"
+final NEXUS_URL = "http://nexus3.${GUID}-nexus.svc:8081/repository/releases"
 
-    // Your Pipeline Code goes here. Make sure to use the ${GUID} and ${CLUSTER} parameters where appropriate
-    // You need to build the application in directory `MLBParks`.
-    // Also copy "../nexus_settings.xml" to your build directory
-    // and replace 'GUID' in the file with your ${GUID} to point to >your< Nexus instance
- 
-  }
+final mvnCmd = "/opt/rh/rh-maven33/root/usr/bin/mvn -q -s nexus_settings.xml "
+
+def version = "0.0"
+def devTag = "0.0-0"
+
+pipeline {
+    agent {
+        kubernetes {
+            label 'skopeo-pod'
+            cloud 'openshift'
+            inheritFrom 'maven'
+            containerTemplate {
+                name 'jnlp'
+                image "docker-registry.default.svc:5000/${GUID}-jenkins/jenkins-slave-appdev"
+                resourceRequestMemory '1Gi'
+                resourceLimitMemory '2Gi'
+            }
+        }
+    }
+    stages {
+        stage("Build-UT-Inspect") {
+            steps {
+                echo "GUID: ${GUID}"
+                echo "CLUSTER: ${CLUSTER}"
+                // TODO checkout scm instead of git
+                git url: GIT_REPOS
+                dir("MLBParks") {
+                    sh "sed 's/GUID/${GUID}/' ../nexus_settings.xml > ./nexus_settings.xml"
+                    sh """
+                      ${mvnCmd} \
+                          -Dmaven.test.failure.ignore=true \
+                          -Dsonar.host.url=http://sonarqube.${GUID}-sonarqube.svc:9000 \
+                          clean test package \
+                          sonar:sonar
+                    """
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'MLBParks/target/surefire-reports/TEST-*.xml'
+                }
+            }
+        }
+        stage("Deploy to Dev") {
+            steps {
+                dir("MLBParks") {
+                    script {
+                        version = getVersionFromPom("pom.xml")
+                        devTag = "${version}-${env.BUILD_NUMBER}"
+                    }
+                    sh "oc project ${GUID}-parks-dev"
+                    sh "oc start-build mlbparks --from-file=target/mlbparks.war --follow"
+                    sh "oc tag mlbparks:latest mlbparks:${devTag}"
+
+                    sh "oc set image dc/mlbparks mlbparks=docker-registry.default.svc:5000/${GUID}-parks-dev/mlbparks:${devTag}"
+                    sh "oc rollout latest dc/mlbparks && oc rollout status dc/mlbparks -w "
+                }
+            }
+        }
+        stage("IT") {
+            steps {
+                sh "curl -s -o /dev/null -w '%{http_code}\n' mlbparks.${GUID}-parks-dev.svc:8080/ws/data/all | fgrep 200"
+            }
+        }
+    }
+    post {
+        success {
+            echo "Deploy artifact to Nexus Maven Repository"
+            dir("MLBParks") {
+                sh """
+                  ${mvnCmd} -DaltDeploymentRepository=nexus::default::${NEXUS_URL} deploy 
+                """
+            }
+            echo "Push image to Nexus Docker Registry"
+            sh """
+              skopeo copy --src-tls-verify=false --src-creds=jenkins:\$(oc whoami -t) --dest-tls-verify=false --dest-creds=admin:admin123 \
+                          docker://docker-registry.default.svc:5000/${GUID}-parks-dev/mlbparks:${devTag} \
+                          docker://nexus-registry.${GUID}-nexus.svc:5000/${GUID}-parks-dev/mlbparks:${devTag}
+            """
+        }
+    }
 }
+
 
 // Convenience Functions to read variables from the pom.xml
 // Do not change anything below this line.
 def getVersionFromPom(pom) {
-  def matcher = readFile(pom) =~ '<version>(.+)</version>'
-  matcher ? matcher[0][1] : null
+    def matcher = readFile(pom) =~ '<version>(.+)</version>'
+    matcher ? matcher[0][1] : null
 }
 def getGroupIdFromPom(pom) {
-  def matcher = readFile(pom) =~ '<groupId>(.+)</groupId>'
-  matcher ? matcher[0][1] : null
+    def matcher = readFile(pom) =~ '<groupId>(.+)</groupId>'
+    matcher ? matcher[0][1] : null
 }
 def getArtifactIdFromPom(pom) {
-  def matcher = readFile(pom) =~ '<artifactId>(.+)</artifactId>'
-  matcher ? matcher[0][1] : null
+    def matcher = readFile(pom) =~ '<artifactId>(.+)</artifactId>'
+    matcher ? matcher[0][1] : null
 }
