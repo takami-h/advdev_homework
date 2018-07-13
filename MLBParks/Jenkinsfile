@@ -7,6 +7,10 @@ final NEXUS_URL = "http://nexus3.${GUID}-nexus.svc:8081/repository/releases"
 
 final mvnCmd = "/opt/rh/rh-maven33/root/usr/bin/mvn -q -s nexus_settings.xml "
 
+final APP_HOME = "MLBParks"
+final APP_NAME = APP_HOME.toLowerCase()
+final ARTIFACT_FILENAME = "${APP_NAME}.war"
+
 def version = "0.0"
 def devTag = "0.0-0"
 
@@ -31,12 +35,12 @@ pipeline {
                 echo "CLUSTER: ${CLUSTER}"
                 // TODO checkout scm instead of git
                 git url: GIT_REPOS
-                dir("MLBParks") {
+                dir(APP_HOME) {
                     sh "sed 's/GUID/${GUID}/' ../nexus_settings.xml > ./nexus_settings.xml"
                     sh """
                       ${mvnCmd} \
                           -Dmaven.test.failure.ignore=true \
-                          -Dsonar.host.url=http://sonarqube.${GUID}-sonarqube.svc:9000 \
+                          -Dsonar.host.url=${SONAR_URL} \
                           clean test package \
                           sonar:sonar
                     """
@@ -44,36 +48,36 @@ pipeline {
             }
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: 'MLBParks/target/surefire-reports/TEST-*.xml'
+                    junit allowEmptyResults: true, testResults: "${APP_HOME}/target/surefire-reports/TEST-*.xml"
                 }
             }
         }
         stage("Deploy to Dev") {
             steps {
-                dir("MLBParks") {
+                dir(APP_HOME) {
                     script {
                         version = getVersionFromPom("pom.xml")
                         devTag = "${version}-${env.BUILD_NUMBER}"
                     }
                     sh "oc project ${GUID}-parks-dev"
-                    sh "oc start-build mlbparks --from-file=target/mlbparks.war --follow"
-                    sh "oc tag mlbparks:latest mlbparks:${devTag}"
+                    sh "oc start-build ${APP_NAME} --from-file=target/${ARTIFACT_FILENAME} --follow"
+                    sh "oc tag ${APP_NAME}:latest ${APP_NAME}:${devTag}"
 
-                    sh "oc set image dc/mlbparks mlbparks=docker-registry.default.svc:5000/${GUID}-parks-dev/mlbparks:${devTag}"
-                    sh "oc rollout latest dc/mlbparks && oc rollout status dc/mlbparks -w "
+                    sh "oc set image dc/${APP_NAME} ${APP_NAME}=docker-registry.default.svc:5000/${GUID}-parks-dev/${APP_NAME}:${devTag}"
+                    sh "oc rollout latest dc/${APP_NAME} && oc rollout status dc/${APP_NAME} -w "
                 }
             }
         }
         stage("IT") {
             steps {
-                sh "curl -s -o /dev/null -w '%{http_code}\n' mlbparks.${GUID}-parks-dev.svc:8080/ws/data/all | fgrep 200"
+                sh "curl -s -o /dev/null -w '%{http_code}\n' ${APP_NAME}.${GUID}-parks-dev.svc:8080/ws/data/all | fgrep 200"
             }
         }
     }
     post {
         success {
             echo "Deploy artifact to Nexus Maven Repository"
-            dir("MLBParks") {
+            dir(APP_HOME) {
                 sh """
                   ${mvnCmd} -DaltDeploymentRepository=nexus::default::${NEXUS_URL} deploy 
                 """
@@ -81,8 +85,8 @@ pipeline {
             echo "Push image to Nexus Docker Registry"
             sh """
               skopeo copy --src-tls-verify=false --src-creds=jenkins:\$(oc whoami -t) --dest-tls-verify=false --dest-creds=admin:admin123 \
-                          docker://docker-registry.default.svc:5000/${GUID}-parks-dev/mlbparks:${devTag} \
-                          docker://nexus-registry.${GUID}-nexus.svc:5000/${GUID}-parks-dev/mlbparks:${devTag}
+                          docker://docker-registry.default.svc:5000/${GUID}-parks-dev/${APP_NAME}:${devTag} \
+                          docker://nexus-registry.${GUID}-nexus.svc:5000/${GUID}-parks-dev/${APP_NAME}:${devTag}
             """
         }
     }
