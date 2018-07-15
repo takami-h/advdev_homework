@@ -1,4 +1,3 @@
-// TODO ハードコーディングをやめるには？
 final CLUSTER = env.CLUSTER
 final GUID = env.GUID
 final SONAR_URL = "http://sonarqube.${GUID}-sonarqube.svc:9000"

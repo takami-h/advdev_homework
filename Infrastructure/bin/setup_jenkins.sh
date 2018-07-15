@@ -27,16 +27,23 @@ echo "Setting up Jenkins in project ${GUID}-jenkins from Git Repo ${REPO} for Cl
 # * CLUSTER: the base url of the cluster used (e.g. na39.openshift.opentlc.com)
 
 TEMPLATES_ROOT=$(dirname $0)/../templates
+
+new_build() {
+    local bc_name=$1
+    local context_dir=$2
+    
+    oc new-build ${REPO} \
+       --name=${bc_name} --strategy=pipeline --context-dir=${context_dir} \
+       -n ${GUID}-jenkins
+    oc cancel-build bc/${bc_name} -n ${GUID}-jenkins
+    oc set env bc/${bc_name} CLUSTER=${CLUSTER} GUID=${GUID}
+}
+
 oc new-app ${TEMPLATES_ROOT}/advdev-jenkins-template.yml -n ${GUID}-jenkins
 
 cat jenkins-slave-appdev.Dockerfile | oc new-build --name=jenkins-slave-appdev -D - -n ${GUID}-jenkins
 
-oc new-build https://github.com/takami-h/advdev_homework.git \
-   --name=mlbparks-pipeline --strategy=pipeline --context-dir=MLBParks \
-   -n ${GUID}-jenkins
-oc new-build https://github.com/takami-h/advdev_homework.git \
-   --name=nationalparks-pipeline --strategy=pipeline --context-dir=Nationalparks \
-   -n ${GUID}-jenkins
-oc new-build https://github.com/takami-h/advdev_homework.git \
-   --name=parksmap-pipeline --strategy=pipeline --context-dir=ParksMap \
-   -n ${GUID}-jenkins
+new_build "mlbparks-pipeline" "MLBParks"
+new_build "nationalparks-pipeline" "Nationalparks"
+new_build "parksmap-pipeline" "ParksMap"
+
