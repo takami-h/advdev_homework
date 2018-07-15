@@ -29,11 +29,14 @@ echo "Setting up Jenkins in project ${GUID}-jenkins from Git Repo ${REPO} for Cl
 TEMPLATES_ROOT=$(dirname $0)/../templates
 oc new-app ${TEMPLATES_ROOT}/advdev-jenkins-template.yml -n ${GUID}-jenkins
 
-cat jenkins-slave-appdev.Dockerfile | oc new-build --name=jenkins-slave-appdev -D -
+cat jenkins-slave-appdev.Dockerfile | oc new-build --name=jenkins-slave-appdev -D - -n ${GUID}-jenkins
 
 oc new-build https://github.com/takami-h/advdev_homework.git \
-   --name=mlbparks-pipeline --strategy=pipeline --context-dir=MLBParks
+   --name=mlbparks-pipeline --strategy=pipeline --context-dir=MLBParks \
+   -n ${GUID}-jenkins
 oc new-build https://github.com/takami-h/advdev_homework.git \
-   --name=nationalparks-pipeline --strategy=pipeline --context-dir=Nationalparks
+   --name=nationalparks-pipeline --strategy=pipeline --context-dir=Nationalparks \
+   -n ${GUID}-jenkins
 oc new-build https://github.com/takami-h/advdev_homework.git \
-   --name=parksmap-pipeline --strategy=pipeline --context-dir=ParksMap
+   --name=parksmap-pipeline --strategy=pipeline --context-dir=ParksMap \
+   -n ${GUID}-jenkins
