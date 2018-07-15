@@ -1,4 +1,3 @@
-final GIT_REPOS = "https://github.com/takami-h/advdev_homework.git"
 // TODO ハードコーディングをやめるには？
 final CLUSTER = "https://master.na39.openshift.opentlc.com"
 final GUID = "thirata"
@@ -38,8 +37,7 @@ pipeline {
             steps {
                 echo "GUID: ${GUID}"
                 echo "CLUSTER: ${CLUSTER}"
-                // TODO checkout scm instead of git
-                git url: GIT_REPOS
+                checkout scm
                 dir(APP_HOME) {
                     sh "sed 's/GUID/${GUID}/' ../nexus_settings.xml > ./nexus_settings.xml"
                     sh """
