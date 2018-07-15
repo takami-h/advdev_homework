@@ -1,6 +1,6 @@
 // TODO ハードコーディングをやめるには？
-final CLUSTER = "env.CLUSTER"
-final GUID = "env.GUID"
+final CLUSTER = env.CLUSTER
+final GUID = env.GUID
 final SONAR_URL = "http://sonarqube.${GUID}-sonarqube.svc:9000"
 final NEXUS_URL = "http://nexus3.${GUID}-nexus.svc:8081/repository/releases"
 
