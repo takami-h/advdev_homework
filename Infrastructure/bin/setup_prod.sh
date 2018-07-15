@@ -77,14 +77,14 @@ oc policy add-role-to-user edit system:serviceaccount:${GUID}-jenkins:jenkins -n
 
 setup_mongodb
 
-setup_parks_backend "mlbparks-blue"  "MLB Parks (Blue)"  "${GUID}-parks-dev/mlbparks:0.0" "parksmap-backend-backup"
+setup_parks_backend "mlbparks-blue"  "MLB Parks (Blue)"  "${GUID}-parks-dev/mlbparks:0.0" "parksmap-backend-standby"
 setup_parks_backend "mlbparks-green" "MLB Parks (Green)" "${GUID}-parks-dev/mlbparks:0.0" "parksmap-backend"
 
-setup_parks_backend "nationalparks-blue"   "National Parks (Blue)"   "${GUID}-parks-dev/nationalparks:0.0" "parksmap-backend-backup"
+setup_parks_backend "nationalparks-blue"   "National Parks (Blue)"   "${GUID}-parks-dev/nationalparks:0.0" "parksmap-backend-standby"
 setup_parks_backend "nationalparks-green"  "National Parks (Green)"  "${GUID}-parks-dev/nationalparks:0.0" "parksmap-backend"
 
 oc policy add-role-to-user view --serviceaccount=default
-setup_app "parksmap-blue"  "ParksMap (Blue)"   "${GUID}-parks-dev/parksmap:0.0" "parksmap-frontend-backup"
+setup_app "parksmap-blue"  "ParksMap (Blue)"   "${GUID}-parks-dev/parksmap:0.0" "parksmap-frontend"
 setup_app "parksmap-green" "ParksMap (Green)"  "${GUID}-parks-dev/parksmap:0.0" "parksmap-frontend"
-oc expose svc/parksmap-blue --name mlbparks
+oc expose svc/parksmap-blue --name parksmap
 

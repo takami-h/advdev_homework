@@ -1,6 +1,6 @@
 final GIT_REPOS = "https://github.com/takami-h/advdev_homework.git"
 // TODO ハードコーディングをやめるには？
-final CLUSTER = "https://jenkins-thirata-jenkins.apps.na39.openshift.opentlc.com"
+final CLUSTER = "https://master.na39.openshift.opentlc.com"
 final GUID = "thirata"
 final SONAR_URL = "http://sonarqube.${GUID}-sonarqube.svc:9000"
 final NEXUS_URL = "http://nexus3.${GUID}-nexus.svc:8081/repository/releases"
@@ -10,9 +10,14 @@ final mvnCmd = "/opt/rh/rh-maven33/root/usr/bin/mvn -q -s nexus_settings.xml "
 final APP_HOME = "ParksMap"
 final APP_NAME = APP_HOME.toLowerCase()
 final ARTIFACT_FILENAME = "${APP_NAME}.jar"
+final TYPE = "parksmap-frontend"
 
 def version = "0.0"
 def devTag = "0.0-0"
+def prodTag = "0.0"
+
+def active = "green"
+def standby = "blue"
 
 pipeline {
     agent {
@@ -58,6 +63,7 @@ pipeline {
                     script {
                         version = getVersionFromPom("pom.xml")
                         devTag = "${version}-${env.BUILD_NUMBER}"
+                        prodTag = "${version}"
                     }
                     sh "oc project ${GUID}-parks-dev"
                     sh "oc start-build ${APP_NAME} --from-file=target/${ARTIFACT_FILENAME} --follow"
@@ -68,21 +74,64 @@ pipeline {
                 }
             }
         }
-    }
-    post {
-        success {
-            echo "Deploy artifact to Nexus Maven Repository"
-            dir(APP_HOME) {
-                sh """
-                  ${mvnCmd} -DaltDeploymentRepository=nexus::default::${NEXUS_URL} deploy 
-                """
+        stage("IT") {
+            when { expression { TYPE == "parksmap-backend" } }
+            steps {
+                sh "curl -s -o /dev/null -w '%{http_code}\n' ${APP_NAME}.${GUID}-parks-dev.svc:8080/ws/data/all | fgrep 200"
             }
-            echo "Push image to Nexus Docker Registry"
-            sh """
-              skopeo copy --src-tls-verify=false --src-creds=jenkins:\$(oc whoami -t) --dest-tls-verify=false --dest-creds=admin:admin123 \
-                          docker://docker-registry.default.svc:5000/${GUID}-parks-dev/${APP_NAME}:${devTag} \
-                          docker://nexus-registry.${GUID}-nexus.svc:5000/${GUID}-parks-dev/${APP_NAME}:${devTag}
-            """
+            post {
+                success {
+                    echo "Deploy tested artifact to Nexus Maven Repository"
+                    dir(APP_HOME) {
+                        sh """
+                          ${mvnCmd} -DaltDeploymentRepository=nexus::default::${NEXUS_URL} deploy 
+                        """
+                    }
+                    echo "Push tested image to Nexus Docker Registry"
+                    sh """
+                      skopeo copy --src-tls-verify=false --src-creds=jenkins:\$(oc whoami -t) --dest-tls-verify=false --dest-creds=admin:admin123 \
+                                  docker://docker-registry.default.svc:5000/${GUID}-parks-dev/${APP_NAME}:${devTag} \
+                                  docker://nexus-registry.${GUID}-nexus.svc:5000/${GUID}-parks-dev/${APP_NAME}:${devTag}
+                    """
+                }
+            }
+        }
+        stage("Deploy to Prod (backend)") {
+            when { expression { TYPE == "parksmap-backend" } }
+            steps {
+                sh "oc project ${GUID}-parks-prod"
+                script {
+                    def typeOfGreen = sh(script: "oc get svc/${APP_NAME}-green -o jsonpath='{ .metadata.labels.type }'", returnStdout: true).trim()
+                    active = (typeOfGreen == TYPE) ? "green" : "blue"
+                    standby = (active == "green") ? "blue" : "green"
+                }
+                echo "${active} is active. deploy ${APP_NAME}:${version} to ${standby}"
+                sh "oc tag ${GUID}-parks-dev/${APP_NAME}:${devTag} ${GUID}-parks-prod/${APP_NAME}-${standby}:${prodTag}"
+                sh "oc set image dc/${APP_NAME}-${standby} ${APP_NAME}-${standby}=docker-registry.default.svc:5000/${GUID}-parks-prod/${APP_NAME}-${standby}:${prodTag}"
+                sh "oc rollout latest dc/${APP_NAME}-${standby} && oc rollout status dc/${APP_NAME}-${standby} -w "
+
+                echo "switch from ${active} to ${standby}"
+                sh "oc delete svc/${APP_NAME}-${standby} && oc expose dc/${APP_NAME}-${standby} --port=8080 -l type=${TYPE}"
+                sh "oc delete svc/${APP_NAME}-${active} && oc expose dc/${APP_NAME}-${active} --port=8080 -l type=${TYPE}-standby"
+            }
+        }
+        stage("Deploy to Prod (frontend)") {
+            when { expression { TYPE == "parksmap-frontend" } }
+            steps {
+                sh "oc project ${GUID}-parks-prod"
+                script {
+                    active = sh(script: "oc get route parksmap -n ${GUID}-parks-prod -o jsonpath='{ .spec.to.name }'", returnStdout: true)
+                               .trim().substring("parksmap-".size())
+                    standby = (active == "green") ? "blue" : "green"
+                }
+                echo "${active} is active. deploy ${APP_NAME}:${version} to ${standby}"
+                sh "oc tag ${GUID}-parks-dev/${APP_NAME}:${devTag} ${GUID}-parks-prod/${APP_NAME}-${standby}:${prodTag}"
+                sh "oc set image dc/${APP_NAME}-${standby} ${APP_NAME}-${standby}=docker-registry.default.svc:5000/${GUID}-parks-prod/${APP_NAME}-${standby}:${prodTag}"
+                sh "oc rollout latest dc/${APP_NAME}-${standby} && oc rollout status dc/${APP_NAME}-${standby} -w "
+
+                echo "switch from ${active} to ${standby}"
+                sh "oc patch route/${APP_NAME} -p '{\"spec\":{\"to\":{\"name\":\"${APP_NAME}-${standby}\"}}}'"
+            }
         }
     }
 }
