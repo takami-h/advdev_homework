@@ -38,35 +38,38 @@ pipeline {
                 echo "GUID: ${GUID}"
                 echo "CLUSTER: ${CLUSTER}"
                 checkout scm
-
-                sh "sed 's/GUID/${GUID}/' ../nexus_settings.xml > ./nexus_settings.xml"
-                sh """
-                    ${mvnCmd} \
-                      -Dmaven.test.failure.ignore=true \
-                      -Dsonar.host.url=${SONAR_URL} \
-                      clean test package \
-                      sonar:sonar
-                """
+                dir(APP_HOME) {
+                    sh "sed 's/GUID/${GUID}/' ../nexus_settings.xml > ./nexus_settings.xml"
+                    sh """
+                      ${mvnCmd} \
+                          -Dmaven.test.failure.ignore=true \
+                          -Dsonar.host.url=${SONAR_URL} \
+                          clean test package \
+                          sonar:sonar
+                    """
+                }
             }
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: "target/surefire-reports/TEST-*.xml"
+                    junit allowEmptyResults: true, testResults: "${APP_HOME}/target/surefire-reports/TEST-*.xml"
                 }
             }
         }
         stage("Deploy to Dev") {
             steps {
-                script {
-                    version = getVersionFromPom("pom.xml")
-                    devTag = "${version}-${env.BUILD_NUMBER}"
-                    prodTag = "${version}"
-                }
-                sh "oc project ${GUID}-parks-dev"
-                sh "oc start-build ${APP_NAME} --from-file=target/${ARTIFACT_FILENAME} --follow"
-                sh "oc tag ${APP_NAME}:latest ${APP_NAME}:${devTag}"
+                dir(APP_HOME) {
+                    script {
+                        version = getVersionFromPom("pom.xml")
+                        devTag = "${version}-${env.BUILD_NUMBER}"
+                        prodTag = "${version}"
+                    }
+                    sh "oc project ${GUID}-parks-dev"
+                    sh "oc start-build ${APP_NAME} --from-file=target/${ARTIFACT_FILENAME} --follow"
+                    sh "oc tag ${APP_NAME}:latest ${APP_NAME}:${devTag}"
 
-                sh "oc set image dc/${APP_NAME} ${APP_NAME}=docker-registry.default.svc:5000/${GUID}-parks-dev/${APP_NAME}:${devTag}"
-                sh "oc rollout latest dc/${APP_NAME} && oc rollout status dc/${APP_NAME} -w "
+                    sh "oc set image dc/${APP_NAME} ${APP_NAME}=docker-registry.default.svc:5000/${GUID}-parks-dev/${APP_NAME}:${devTag}"
+                    sh "oc rollout latest dc/${APP_NAME} && oc rollout status dc/${APP_NAME} -w "
+                }
             }
         }
         stage("IT") {
@@ -77,10 +80,11 @@ pipeline {
             post {
                 success {
                     echo "Deploy tested artifact to Nexus Maven Repository"
-                    sh """
-                      ${mvnCmd} -DaltDeploymentRepository=nexus::default::${NEXUS_URL} deploy 
-                    """
-
+                    dir(APP_HOME) {
+                        sh """
+                          ${mvnCmd} -DaltDeploymentRepository=nexus::default::${NEXUS_URL} deploy 
+                        """
+                    }
                     echo "Push tested image to Nexus Docker Registry"
                     sh """
                       skopeo copy --src-tls-verify=false --src-creds=jenkins:\$(oc whoami -t) --dest-tls-verify=false --dest-creds=admin:admin123 \
