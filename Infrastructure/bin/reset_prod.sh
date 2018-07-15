@@ -17,4 +17,22 @@ echo "Resetting Parks Production Environment in project ${GUID}-parks-prod to Gr
 # up the whole infrastructure to guarantee a Blue
 # rollout followed by a Green rollout.
 
-# To be Implemented by Student
+switch_backend() {
+    local app_name=$1
+    local to_standby=$2
+    local to_active=$3
+    oc delete svc/${app_name}-${to_active} && oc expose dc/${app_name}-${to_active} --port=8080 -l type="parksmap-backend"
+    oc delete svc/${app_name}-${to_standby} && oc expose dc/${app_name}-${to_standby} --port=8080 -l type="parksmap-backend-standby"
+}
+switch_frontend() {
+    local app_name=$1
+    local to_standby=$2
+    local to_active=$3
+    oc patch route/${app_name} -p "{\"spec\":{\"to\":{\"name\":\"${app_name}-${to_active}\"}}}"
+}
+
+oc project ${GUID}-parks-prod
+
+switch_backend  "mlbparks"      "blue" "green"
+switch_backend  "nationalparks" "blue" "green"
+switch_frontend "parksmap"      "blue" "green"
