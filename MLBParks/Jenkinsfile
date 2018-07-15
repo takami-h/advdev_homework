@@ -89,7 +89,7 @@ pipeline {
                     sh """
                       skopeo copy --src-tls-verify=false --src-creds=jenkins:\$(oc whoami -t) --dest-tls-verify=false --dest-creds=admin:admin123 \
                                   docker://docker-registry.default.svc:5000/${GUID}-parks-dev/${APP_NAME}:${devTag} \
-                                  docker://nexus-registry.${GUID}-nexus.svc:5000/${GUID}-parks-dev/${APP_NAME}:${devTag}
+                                  docker://nexus3-registry.${GUID}-nexus.svc:5000/${GUID}-parks-dev/${APP_NAME}:${devTag}
                     """
                 }
             }
