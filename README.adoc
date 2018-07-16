@@ -1,18 +1,198 @@
-== Parks Map Multi-service Application
+= OpenShift CI/CD Demo
+:sectnums:
+:toc: left
 
-This is an example application consisting of three micro-services to be used in the Advanced OpenShift Development Homework Assignment. Read these instructions carefully to successfully complete the homework assignment.
+== Introduction
 
-You are expected to clone this repository into your own public repository (GitHub, Gogs, Gitlab). This repository needs to be accessible to the instructor.
+This is a fully integrated CI/CD pipeline on OpenShift Container Platform which demonstrates:
 
-In this repository are three services:
+* builds, tests and deploys Java-based microservices.
+* archives tested binaries (Jar/War, Container Image) using https://www.sonatype.com/nexus-repository-sonatype[Nexus Repository Manager].
+* inspects source code quality using https://www.sonarqube.org/[SonarQube].
+* https://martinfowler.com/bliki/BlueGreenDeployment.html[blue-green deployment] on production environment.
 
-* Two backend services providing geospatial data about Nationalparks and Major League Baseball park. The backend services are exposed as services with label "type=parksmap-backend". The data can be stored in a MongoDB database.
-* A frontend parksmap application that can display the data on a map on a web site. The parksmap application dynamically discovers services with label "type=parksmap-backend".
 
-There is also a directory "Infrastructure" which needs to contain scripts to set up the entire homework environment from scratch as well as templates to create the various components. This directory contains place holders for all required scripts.
+== How to use
+=== Prerequisites
 
-See the individual application directories for instructions / hints on how to set up this application on OpenShift.
+This demo includes shell scripts which create demo environment on working OpenShift Cluster, so this demo requires:
 
-Your Homework assignment will be graded by executing the pipeline at https://github.com/wkulhanek/advdev_homework_grading.
+* Bash terminal environment (tested on macOS High Sierra)
+* OpenShift Container Platform 3.9 Cluster
+** &ge; 8 CPU cores
+** &ge; 10GB memory
+** &ge; 30GB storage
+** Internet connected
+** Accessible with cluster-admin role
+* `oc` command-line client
 
-You can set up your own grading environment if you want to ensure that your submission will succeed.
+=== Setup Demo Environment
+
+To create demo environment:
+
+1. run `Infrastructure/bin/setup_project.sh ${GUID} ${USER}`
+  * `${GUID}`: unique ID (to make project names unique on shared OpenShift Cluster)
+  * `${USER}`: your OpenShift Account
+  * this script creates five OpenShift projects for demo.
+2. run `Infrastructure/bin/setup_jenkins.sh ${GUID} https://github.com/takami-h/advdev_homework.git ${CLUSTER}`
+  * `${CLUSTER}`: your OpenShift API Endpoint
+  * this script creates a Jenkins instance and pipelines on `${GUID}-jenkins` project.
+3. run `Infrastructure/bin/setup_nexus.sh ${GUID}`
+  * this script creates a Nexus instance and configure as a in-house Maven Repository and Container Registry.
+4. run `Infrastructure/bin/setup_dev.sh ${GUID}`
+  * this script creates a Parks Map development-test environment.
+5. run `Infrastructure/bin/setup_prod.sh ${GUID}`
+  * this script creates a Parks Map production environment.
+
+=== Start pipelines
+
+To build and deploy apps via pipelines:
+
+1. start pipelines
+  . execute command `oc start-build bc/parksmap-pipeline -n ${GUID}-jenkins`
+    * this command starts pipeline build of ParksMap frontend app.
+  . execute command `oc start-build bc/nationalparks-pipeline -n ${GUID}-jenkins`
+    * this command starts pipeline build of Nationalparks backend app.
+  . execute command `oc start-build bc/mlbparks-pipeline -n ${GUID}-jenkins`
+    * this command starts pipeline build of MLBParks backend app.
+2. open ParksMap URL and examine Parks Map app.
+  * You can get URL of development env by command: +
+    `oc get route/parksmap -o jsonpath='{ .spec.host }' -n ${GUID}-parks-dev`.
+  * You can get URL of production env by command: +
+    `oc get route/parksmap -o jsonpath='{ .spec.host }' -n ${GUID}-parks-prod`.
+3. explore Nexus Repository Manager to find tested Jar/Wars and Container images.
+  * You can get URL of Nexus by command: +
+    `oc get route/nexus3 -o jsonpath='{ .spec.host }' -n ${GUID}-nexus`.
+  * Login with account `admin/admin123`
+4. explore SonarQube to see inspection reports.
+  * You can get URL of SonarQube by command: +
+    `oc get route/soanrqube -o jsonpath='{ .spec.host }' -n ${GUID}-sonarqube`.
+
+=== Remove Demo Environment
+
+To remove demo environment, run `Infrastructure/bin/cleanup.sh ${GUID}`
+
+
+== Demo Overview
+=== OpenShift Projects
+
+This demo contains five OpenShift projects.
+
+==== Infrastructure: jenkins
+
+The `${GUID}-jenkins` is an infrastructure project which runs Jenkins CI/CD server. This project have three pipelines which build and deploy Java-based microservices.
+
+This project is generated by template `Infrastructure/templates/advdev-jenkins-template.yml`.
+
+==== Infrastructure: nexus
+
+The `${GUID}-nexus` is an infrastructure project which runs Nexus Repository Manager.
+
+In this demo, we use Nexus as an in-house Maven Repository and Container Registry. We also use Nexus as a cache server of external Maven Repositories.
+
+There are two endpoints of Nexus, one for maven repository and Web UI, the other for container registry.
+
+This project is generated by template `Infrastructure/templates/advdev-nexus-template.yml`.
+
+==== Infrastructure: sonarqube
+
+The `${GUID}-sonarqube` is an infrastructure project which runs SonarQube.
+
+In this demo, we use SonarQube to inspect Java source code quality and view inspection reports.
+
+This project is generated by template `Infrastructure/templates/advdev-sonarqube-template.yml`.
+
+==== App: parks-dev
+
+The `${GUID}-parks-dev` is the Parks Map development-test environment which deploys three Java-based microservices and MongoDB.
+
+This project is generated by shell script `Infrastructure/bin/setup_dev.sh`.
+
+==== App: parks-prod
+
+The `${GUID}-parks-prod` is the Parks Map production environment which deploys three Java-based microservices and MongoDB cluster.
+
+This project is generated by shell script `Infrastructure/bin/setup_prod.sh`.
+
+=== ParksMap Application
+
+This demo uses Parks Map, the map app showing National Parks and Major League Baseball Parks.
+
+==== ParksMap
+
+ParksMap is a Spring Boot based Map frontend app using S2I builder image `redhat-openjdk18-openshift:1.2`.
+
+See link:ParksMap/README.adoc[ParksMap/README] for more information.
+
+==== Nationalparks
+
+Nationalparks is a Spring Boot based Map backend app using S2I builder image `redhat-openjdk18-openshift:1.2`.
+
+See link:Nationalparks/README.adoc[Nationalparks/README] for more information.
+
+==== MLBParks
+
+MLBParks is a Java EE 7 based Map backend app using S2I builder image `jboss-eap70-openshift:1.7`.
+
+See link:MLBParks/README.adoc[MLBParks/README] for more information.
+
+
+== Pipeline
+
+This demo contains three pipelines for three Java-based microservices.
+
+ParksMap Pipeline definition::
+  `ParksMap/Jenkinsfile`
+NationalParks Pipeline definition::
+  `NationalParks/Jenkinsfile`
+MLBParks Pipeline definition::
+  `MLBParks/Jenkinsfile`
+
+=== Jenkins Agent Pod
+
+In this demo, pipelines are executed on an OpenShift Pod as a Jenkins build agent.
+
+The agent Pod is customized based on existing Maven Container Image `openshift/jenkins-slave-maven-centos7:v3.9` by adding skopeo to manimupate tested Container Images.
+
+See `Infrastructure/templates/jenkins-slave-appdev.Dockerfile` for Container Image definition.
+
+=== Build-UT-Inspect stage
+
+In the "Build-UT-Inspect" stage:
+
+1. pulls latest sources, compiles, runs JUnit tests, and packages as a Jar/War.
+  * using Nexus as a in-house Maven repository.
+2. inspects source code quality on SonarQube.
+3. archives JUnit test results as a post-process.
+
+=== Deploy to Dev stage
+
+Using `${GUID}-parks-dev`, in the "Deploy to Dev" stage:
+
+1. starts binary build using binary(Jar/War) built on previous stage
+2. adds tag to built container image `<pom.xml version>-<build number>` like `1.0-99`
+3. updates container image tag of deployment config and roll out Pod.
+
+=== IT stage
+
+This stage is executed for backend apps only.
+
+Using `${GUID}-parks-dev`, in the "IT (Integration Tests)" stage:
+
+1. tests backend REST API using cURL command.
+2. pushes tested Jar/War to Nexus Maven Repository as a post-process.
+3. pushes tested container image to Nexus Container Registry as a post-process.
+
+=== Deploy to Prod stage
+
+Using `${GUID}-parks-prod`, in the "Deploy to Prod" stage:
+
+1. determines which is the Active of Blue and Green.
+  * for frontend, it is based on the Service connected by the ParksMap Router.
+  * for backend, it is based on the label of the Service (`parksmap-backend` for active, `parksmap-backend-standby` for standby).
+2. adds tag for production to tested container image in development project.
+3. updates container image tag of deployment config and roll out Pod.
+4. switches to latest version.
+  * for frontend, updates the target Service of the ParksMap Router.
+  * for backend, recreate standby Service with active label `parksmap-backend`, and recreate active Service with standby label `parksmap-backend-standby`.
+
