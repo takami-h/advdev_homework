@@ -15,4 +15,6 @@ echo "Setting up Sonarqube in project $GUID-sonarqube"
 
 # To be Implemented by Student
 TEMPLATES_ROOT=$(dirname $0)/../templates
-oc new-app ${TEMPLATES_ROOT}/advdev-sonarqube-template.yml -n ${GUID}-sonarqube
+oc new-app ${TEMPLATES_ROOT}/advdev-sonarqube-template.yml -n ${GUID}-sonarqube && \
+    oc rollout status dc/$(oc get dc -o jsonpath='{ .items[0].metadata.name }' -n ${GUID}-sonarqube) -w -n ${GUID}-sonarqube
+    

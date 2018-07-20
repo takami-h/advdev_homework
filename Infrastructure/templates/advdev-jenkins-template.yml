@@ -85,7 +85,10 @@ objects:
             initialDelaySeconds: 3
             timeoutSeconds: 600
           resources:
+            requests:
+              cpu: ${CPU_MIN}
             limits:
+              cpu: ${CPU_MAX}
               memory: ${MEMORY_LIMIT}
           securityContext:
             capabilities: {}
@@ -177,6 +180,14 @@ parameters:
   displayName: Enable OAuth in Jenkins
   name: ENABLE_OAUTH
   value: "true"
+- name: CPU_MIN
+  value: "1"
+  displayName: Minimum Jenkins CPU
+  description: Minimum amount of CPU for jenkins container.
+- name: CPU_MAX
+  value: "2"
+  displayName: Maximum Jenkins CPU
+  description: Maximum amount of CPU for jenkins container.
 - description: Maximum amount of memory the container can use.
   displayName: Memory Limit
   name: MEMORY_LIMIT

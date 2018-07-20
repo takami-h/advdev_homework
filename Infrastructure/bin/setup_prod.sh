@@ -63,6 +63,8 @@ setup_mongodb() {
     ${occmd} create -f ${TEMPLATES_ROOT}/mongodb.svc.yml
     ${occmd} create -f ${TEMPLATES_ROOT}/mongodb.statefulset.yml
 
+    ${occmd} rollout status dc/mongodb -w
+
     ${occmd} create configmap parksdb-config \
        --from-literal=DB_HOST=mongodb \
        --from-literal=DB_PORT=27017 \

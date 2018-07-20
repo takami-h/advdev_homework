@@ -42,6 +42,8 @@ setup_mongodb() {
        --param=MONGODB_PASSWORD=mongodb \
        --param=MONGODB_DATABASE=parks
 
+    ${occmd} rollout status dc/mongodb -w
+
     ${occmd} create configmap parksdb-config \
        --from-literal=DB_HOST=mongodb \
        --from-literal=DB_PORT=27017 \
