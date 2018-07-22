@@ -22,9 +22,10 @@ setup_app() {
     local image=$3
     local type_label=$4
 
-    ${occmd} new-app ${image} --allow-missing-imagestream-tags=true \
+    ${occmd} new-app ${image} --allow-missing-images=true --allow-missing-imagestream-tags=true \
        --name=${app_name} -l type=${type_label}
     ${occmd} set triggers dc/${app_name} --remove-all
+    ${occmd} rollout cancel dc/${app_name}
 
     ${occmd} expose dc/${app_name} --port 8080
 
