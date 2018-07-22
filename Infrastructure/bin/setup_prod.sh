@@ -86,7 +86,7 @@ setup_parks_backend "mlbparks-green" "MLB Parks (Green)" "${GUID}-parks-dev/mlbp
 setup_parks_backend "nationalparks-blue"   "National Parks (Blue)"   "${GUID}-parks-dev/nationalparks:0.0" "parksmap-backend-standby"
 setup_parks_backend "nationalparks-green"  "National Parks (Green)"  "${GUID}-parks-dev/nationalparks:0.0" "parksmap-backend"
 
-oc policy add-role-to-user view --serviceaccount=default
+oc policy add-role-to-user view --serviceaccount=default -n ${GUID}-parks-prod
 setup_app "parksmap-blue"  "ParksMap (Blue)"   "${GUID}-parks-dev/parksmap:0.0" "parksmap-frontend"
 setup_app "parksmap-green" "ParksMap (Green)"  "${GUID}-parks-dev/parksmap:0.0" "parksmap-frontend"
 ${occmd}  expose svc/parksmap-blue --name parksmap

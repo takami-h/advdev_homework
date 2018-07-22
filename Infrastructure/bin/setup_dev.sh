@@ -83,7 +83,7 @@ setup_nationalparks() {
 setup_parksmap() {
     echo "Setting up Parksmap frontend web app"
 
-    oc policy add-role-to-user view --serviceaccount=default
+    ${occmd} policy add-role-to-user view --serviceaccount=default
     setup_app "parksmap" "redhat-openjdk18-openshift:1.2" "parksmap-frontend"
 
     ${occmd} create configmap parksmap-config \
@@ -93,7 +93,7 @@ setup_parksmap() {
     ${occmd} expose svc/parksmap
 }
 
-oc policy add-role-to-user edit system:serviceaccount:${GUID}-jenkins:jenkins
+${occmd} policy add-role-to-user edit system:serviceaccount:${GUID}-jenkins:jenkins
 
 setup_mongodb
 
