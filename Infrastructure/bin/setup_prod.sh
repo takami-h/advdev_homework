@@ -89,5 +89,5 @@ setup_parks_backend "nationalparks-green"  "National Parks (Green)"  "${GUID}-pa
 oc policy add-role-to-user view --serviceaccount=default -n ${GUID}-parks-prod
 setup_app "parksmap-blue"  "ParksMap (Blue)"   "${GUID}-parks-dev/parksmap:0.0" "parksmap-frontend"
 setup_app "parksmap-green" "ParksMap (Green)"  "${GUID}-parks-dev/parksmap:0.0" "parksmap-frontend"
-${occmd}  expose svc/parksmap-blue --name parksmap
+${occmd} expose svc/parksmap-green --name parksmap
 
