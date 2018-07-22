@@ -26,23 +26,25 @@ echo "Setting up Jenkins in project ${GUID}-jenkins from Git Repo ${REPO} for Cl
 # * GUID: the GUID used in all the projects
 # * CLUSTER: the base url of the cluster used (e.g. na39.openshift.opentlc.com)
 
+occmd="oc -n ${GUID}-parks-prod "
+
 TEMPLATES_ROOT=$(dirname $0)/../templates
 
 new_build() {
     local bc_name=$1
     local context_dir=$2
     
-    oc new-build ${REPO} \
-       --name=${bc_name} --strategy=pipeline --context-dir=${context_dir} \
-       -n ${GUID}-jenkins
-    oc cancel-build bc/${bc_name} -n ${GUID}-jenkins
-    oc set env bc/${bc_name} CLUSTER=${CLUSTER} GUID=${GUID}
+    ${occmd} new-build ${REPO} \
+       --name=${bc_name} --strategy=pipeline --context-dir=${context_dir}
+
+    ${occmd} cancel-build bc/${bc_name}
+    ${occmd} set env bc/${bc_name} CLUSTER=${CLUSTER} GUID=${GUID}
 }
 
-oc new-app ${TEMPLATES_ROOT}/advdev-jenkins-template.yml -n ${GUID}-jenkins && \
-    oc rollout status dc/$(oc get dc -o jsonpath='{ .items[0].metadata.name }' -n ${GUID}-jenkins) -w -n ${GUID}-jenkins
+${occmd} new-app ${TEMPLATES_ROOT}/advdev-jenkins-template.yml && \
+    ${occmd} rollout status dc/$(${occmd} get dc -o jsonpath='{ .items[0].metadata.name }') -w 
 
-cat ${TEMPLATES_ROOT}/jenkins-slave-appdev.Dockerfile | oc new-build --name=jenkins-slave-appdev -D - -n ${GUID}-jenkins
+cat ${TEMPLATES_ROOT}/jenkins-slave-appdev.Dockerfile | ${occmd} new-build --name=jenkins-slave-appdev -D - 
 
 new_build "mlbparks-pipeline" "MLBParks"
 new_build "nationalparks-pipeline" "Nationalparks"
