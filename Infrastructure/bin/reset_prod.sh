@@ -32,7 +32,8 @@ switch_frontend() {
     local app_name=$1
     local to_standby=$2
     local to_active=$3
-    ${occmd} patch route/${app_name} -p "{\"spec\":{\"to\":{\"name\":\"${app_name}-${to_active}\"}}}" 
+    ${occmd} patch route/${app_name} -p "{\"spec\":{\"to\":{\"name\":\"${app_name}-${to_active}\"}}}" || \
+        echo "not patched"
 }
 
 switch_backend  "mlbparks"      "blue" "green"
