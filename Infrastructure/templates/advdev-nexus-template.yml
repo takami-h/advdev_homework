@@ -73,7 +73,7 @@ objects:
             timeoutSeconds: 10
           resources:
             limits:
-              cpu: "2"
+              cpu: "1"
               memory: ${NEXUS_MEMORY_MAX}
             requests:
               memory: ${NEXUS_MEMORY_MIN}
