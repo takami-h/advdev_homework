@@ -185,7 +185,7 @@ parameters:
   displayName: Minimum Jenkins CPU
   description: Minimum amount of CPU for jenkins container.
 - name: CPU_MAX
-  value: "4"
+  value: "2"
   displayName: Maximum Jenkins CPU
   description: Maximum amount of CPU for jenkins container.
 - description: Maximum amount of memory the container can use.
