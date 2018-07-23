@@ -19,8 +19,8 @@ This demo includes shell scripts which create demo environment on working OpenSh
 
 * Bash terminal environment (tested on macOS High Sierra)
 * OpenShift Container Platform 3.9 Cluster
-** &ge; 8 CPU cores
-** &ge; 10GB memory
+** &ge; 16 CPU cores
+** &ge; 16GB memory
 ** &ge; 30GB storage
 ** Internet connected
 ** Accessible with cluster-admin role
